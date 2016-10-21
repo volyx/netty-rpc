@@ -1,9 +1,9 @@
 package ru.alepar.rpc.common;
 
+import io.netty.handler.codec.serialization.ClassResolver;
+
 import java.util.HashMap;
 import java.util.Map;
-
-import org.jboss.netty.handler.codec.serialization.ClassResolver;
 
 public class PrimitiveTypesClassResolver implements ClassResolver {
 

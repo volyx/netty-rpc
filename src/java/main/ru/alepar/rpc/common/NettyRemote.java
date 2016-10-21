@@ -7,7 +7,7 @@ import java.lang.reflect.Proxy;
 import java.util.Arrays;
 import java.util.Set;
 
-import org.jboss.netty.channel.Channel;
+import io.netty.channel.Channel;
 import ru.alepar.rpc.api.Remote;
 import ru.alepar.rpc.api.exception.ConfigurationException;
 import ru.alepar.rpc.common.message.InvocationRequest;
@@ -44,7 +44,7 @@ public class NettyRemote implements Remote, Serializable {
 
     @Override
     public String getRemoteAddress() {
-        return channel.getRemoteAddress().toString();
+        return channel.remoteAddress().toString();
     }
 
     @Override

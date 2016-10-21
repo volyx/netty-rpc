@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
-import org.jboss.netty.handler.codec.serialization.ClassResolver;
+import io.netty.handler.codec.serialization.ClassResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.alepar.rpc.common.BossThreadFactory;
@@ -20,9 +20,9 @@ import ru.alepar.rpc.server.NettyRpcServer;
 import ru.alepar.rpc.server.ServerProvider;
 import ru.alepar.rpc.server.SimpleServerProvider;
 
+import static io.netty.handler.codec.serialization.ClassResolvers.softCachingConcurrentResolver;
 import static java.util.Collections.unmodifiableMap;
 import static java.util.concurrent.Executors.newCachedThreadPool;
-import static org.jboss.netty.handler.codec.serialization.ClassResolvers.softCachingConcurrentResolver;
 
 public class NettyRpcServerBuilder {
 

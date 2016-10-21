@@ -6,7 +6,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.jboss.netty.handler.codec.serialization.ClassResolver;
+import io.netty.handler.codec.serialization.ClassResolver;
 import ru.alepar.rpc.api.exception.ConfigurationException;
 import ru.alepar.rpc.common.message.InvocationRequest;
 

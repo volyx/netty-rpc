@@ -1,6 +1,7 @@
 package ru.alepar.rpc.client;
 
 import java.net.InetSocketAddress;
+import java.nio.channels.Channels;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -8,20 +9,13 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 
-import org.jboss.netty.bootstrap.ClientBootstrap;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.channel.ExceptionEvent;
-import org.jboss.netty.channel.MessageEvent;
-import org.jboss.netty.channel.SimpleChannelHandler;
-import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
-import org.jboss.netty.handler.codec.serialization.ClassResolver;
-import org.jboss.netty.handler.codec.serialization.ObjectDecoder;
-import org.jboss.netty.handler.codec.serialization.ObjectEncoder;
+import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.*;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.handler.codec.serialization.ClassResolver;
+import io.netty.handler.codec.serialization.ObjectDecoder;
+import io.netty.handler.codec.serialization.ObjectEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.alepar.rpc.api.ExceptionListener;
@@ -52,7 +46,7 @@ public class NettyRpcClient implements RpcClient {
     private final Map<Class<?>, Object> implementations;
     private final ExceptionListener[] listeners;
 
-    private final ClientBootstrap bootstrap;
+    private final Bootstrap bootstrap;
     private final Channel channel;
     private volatile NettyRemote remote;
 
@@ -61,16 +55,22 @@ public class NettyRpcClient implements RpcClient {
         this.listeners = listeners;
         this.classResolver = classResolver;
 
-        bootstrap = new ClientBootstrap(
-                new NioClientSocketChannelFactory(bossExecutor, workerExecutor)
+        bootstrap = new Bootstrap(
+                new NioEventLoopGroup(1, bossExecutor, workerExecutor)
         );
+
+        bootstrap.handler(new ChannelInitializer<SocketChannel>() {
+            @Override
+            public void initChannel(SocketChannel ch) throws Exception {
+                ch.pipeline().addLast(new ObjectEncoder());
+                ch.pipeline().addLast(new ObjectDecoder(classResolver));
+                ch.pipeline().addLast(new RpcHandler());            }
+        });
 
         bootstrap.setPipelineFactory(new ChannelPipelineFactory() {
             public ChannelPipeline getPipeline() throws Exception {
                 return Channels.pipeline(
-                        new ObjectEncoder(),
-                        new ObjectDecoder(classResolver),
-                        new RpcHandler());
+
             }
         });
 
@@ -115,11 +115,12 @@ public class NettyRpcClient implements RpcClient {
         }
     }
 
-    private class RpcHandler extends SimpleChannelHandler implements RpcMessage.Visitor {
+    private class RpcHandler extends SimpleChannelInboundHandler implements RpcMessage.Visitor {
+
 
         @Override
-        public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
-            RpcMessage message = (RpcMessage) e.getMessage();
+        protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
+            RpcMessage message = (RpcMessage) msg;
             log.debug("client got message {}", message.toString());
 
             message.visit(this);
@@ -177,7 +178,6 @@ public class NettyRpcClient implements RpcClient {
         public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
             fireException(new TransportException(e.getCause()));
         }
-
     }
 
 }

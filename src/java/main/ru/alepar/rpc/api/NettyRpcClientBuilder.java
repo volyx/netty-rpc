@@ -7,16 +7,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
-import org.jboss.netty.handler.codec.serialization.ClassResolver;
+import io.netty.handler.codec.serialization.ClassResolver;
 import ru.alepar.rpc.client.NettyRpcClient;
 import ru.alepar.rpc.common.BossThreadFactory;
 import ru.alepar.rpc.common.PrimitiveTypesClassResolver;
 import ru.alepar.rpc.common.Validator;
 import ru.alepar.rpc.common.WorkerThreadFactory;
 
+import static io.netty.handler.codec.serialization.ClassResolvers.softCachingConcurrentResolver;
 import static java.util.Collections.unmodifiableMap;
 import static java.util.concurrent.Executors.newCachedThreadPool;
-import static org.jboss.netty.handler.codec.serialization.ClassResolvers.softCachingConcurrentResolver;
 
 public class NettyRpcClientBuilder {
 
@@ -77,8 +77,8 @@ public class NettyRpcClientBuilder {
 
     /**
      * sets classResolver that will be used by this RpcClient <br/>
-     * see {@link org.jboss.netty.handler.codec.serialization.ClassResolvers ClassResolvers} for available implementations
-     * @param classResolver to be used, default is {@link org.jboss.netty.handler.codec.serialization.ClassResolvers#softCachingConcurrentResolver(java.lang.ClassLoader) softCachingConcurrentResolver}
+     * see @link org.jboss.netty.handler.codec.serialization.ClassResolvers ClassResolvers} for available implementations
+     * @param classResolver to be used, default is @link org.jboss.netty.handler.codec.serialization.ClassResolvers#softCachingConcurrentResolver(java.lang.ClassLoader) softCachingConcurrentResolver}
      * @return this builder
      */
     public NettyRpcClientBuilder setClassResolver(ClassResolver classResolver) {
