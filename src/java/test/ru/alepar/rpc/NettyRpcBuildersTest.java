@@ -28,11 +28,11 @@ public class NettyRpcBuildersTest {
 
         RpcServer server = serverBuilder
                 .addObject(ServerRemote.class, mock)
-                .setKeepAlive(50l)
+                .setKeepAlive(50L)
                 .build();
 
         RpcClient client = clientBuilder
-                .setKeepAlive(50l)
+                .setKeepAlive(50L)
                 .build();
 
         try {
