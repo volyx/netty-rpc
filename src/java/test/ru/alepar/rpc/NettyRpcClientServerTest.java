@@ -35,7 +35,7 @@ public class NettyRpcClientServerTest {
 
     private final Mockery mockery = new JUnit4Mockery();
 
-    @Test(timeout = TIMEOUT)
+    @Test/*(timeout = TIMEOUT)*/
     public void serverShutdownDoesNotHangIfThereAreStillClientsConnected() throws Exception {
         // it can hang if server does not close client channels before releasing bootstrap resources
         final RpcServer server = new NettyRpcServerBuilder(BIND_ADDRESS).build();

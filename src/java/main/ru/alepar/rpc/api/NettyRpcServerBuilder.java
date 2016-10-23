@@ -179,10 +179,7 @@ public class NettyRpcServerBuilder {
                 unmodifiableMap(implementations), 
                 exceptionListeners.toArray(new ExceptionListener[exceptionListeners.size()]),
                 clientListeners.toArray(new ClientListener[clientListeners.size()]),
-                new PrimitiveTypesClassResolver(classResolver),
-                keepAlive,
-                bossExecutor,
-                workerExecutor
+                new PrimitiveTypesClassResolver(classResolver)
         );
     }
 }

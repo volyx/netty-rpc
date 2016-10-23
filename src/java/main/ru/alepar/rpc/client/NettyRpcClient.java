@@ -13,6 +13,7 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.serialization.ClassResolver;
 import io.netty.handler.codec.serialization.ObjectDecoder;
 import io.netty.handler.codec.serialization.ObjectEncoder;
@@ -50,54 +51,63 @@ public class NettyRpcClient implements RpcClient {
     private final Channel channel;
     private volatile NettyRemote remote;
 
-    public NettyRpcClient(final InetSocketAddress remoteAddress, final Map<Class<?>, Object> implementations, final ExceptionListener[] listeners, final ClassResolver classResolver, final long keepalivePeriod, ExecutorService bossExecutor, ExecutorService workerExecutor) {
+    public NettyRpcClient(final InetSocketAddress remoteAddress, final Map<Class<?>, Object> implementations, final ExceptionListener[] listeners, final ClassResolver classResolver, final long keepalivePeriod) {
         this.implementations = implementations;
         this.listeners = listeners;
         this.classResolver = classResolver;
 
-        bootstrap = new Bootstrap(
-                new NioEventLoopGroup(1, bossExecutor, workerExecutor)
-        );
-
-        bootstrap.handler(new ChannelInitializer<SocketChannel>() {
-            @Override
-            public void initChannel(SocketChannel ch) throws Exception {
-                ch.pipeline().addLast(new ObjectEncoder());
-                ch.pipeline().addLast(new ObjectDecoder(classResolver));
-                ch.pipeline().addLast(new RpcHandler());            }
-        });
-
-        bootstrap.setPipelineFactory(new ChannelPipelineFactory() {
-            public ChannelPipeline getPipeline() throws Exception {
-                return Channels.pipeline(
-
-            }
-        });
-
-        final ChannelFuture future = bootstrap.connect(remoteAddress);
-        channel = future.awaitUninterruptibly().getChannel();
-
-        if (!future.isSuccess()) {
-            bootstrap.releaseExternalResources();
-            throw new TransportException("failed to connect to " + remoteAddress, future.getCause());
-        }
-        
-        latch = new CountDownLatch(1);
-        channel.write(new HandshakeFromClient(foldClassesToStrings(new ArrayList<Class<?>>(implementations.keySet()))));
+        bootstrap = new Bootstrap();
+        NioEventLoopGroup workerGroup = new NioEventLoopGroup();
         try {
-            latch.await();
-        } catch (InterruptedException e) {
-            throw new RuntimeException("interrupted waiting for handshake", e);
-        }
+            bootstrap.group(workerGroup);
+            bootstrap.channel(NioSocketChannel.class); // (3)
+            bootstrap.option(ChannelOption.SO_KEEPALIVE, true); // (4)
+            bootstrap.handler(new ChannelInitializer<SocketChannel>() {
+                @Override
+                public void initChannel(SocketChannel ch) throws Exception {
+                    ch.pipeline().addLast(new ObjectEncoder());
+                    ch.pipeline().addLast(new ObjectDecoder(classResolver));
+                    ch.pipeline().addLast(new RpcHandler());
+                }
+            });
 
-        keepAliveTimer = new KeepAliveTimer(Collections.singleton(remote), keepalivePeriod);
+            final ChannelFuture future = bootstrap.connect(remoteAddress);
+            channel = future.awaitUninterruptibly().channel();
+
+            // Start the client.
+            ChannelFuture f = bootstrap.connect(remoteAddress).sync(); // (5)
+
+            // Wait until the connection is closed.
+            f.channel().closeFuture().sync();
+
+            if (!future.isSuccess()) {
+//            bootstrap.relereleaseExternalResources();
+                throw new TransportException("failed to connect to " + remoteAddress, future.cause());
+            }
+
+            latch = new CountDownLatch(1);
+            channel.write(new HandshakeFromClient(foldClassesToStrings(new ArrayList<Class<?>>(implementations.keySet()))));
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                throw new RuntimeException("interrupted waiting for handshake", e);
+            }
+
+            keepAliveTimer = new KeepAliveTimer(Collections.singleton(remote), keepalivePeriod);
+        } catch (Exception e) {
+            log.error("",e);
+            throw new RuntimeException();
+
+        } finally {
+            workerGroup.shutdownGracefully();
+        }
     }
 
     @Override
     public void shutdown() {
         keepAliveTimer.stop();
         channel.close().awaitUninterruptibly();
-        bootstrap.releaseExternalResources();
+//        bootstrap.releaseExternalResources();
     }
 
     @Override
@@ -168,15 +178,16 @@ public class NettyRpcClient implements RpcClient {
 
         private Object getImplementation(InvocationRequest msg, Class<?> clazz) {
             Object impl = implementations.get(clazz);
-            if(impl == null) {
+            if (impl == null) {
                 throw new RuntimeException("interface is not registered on client: " + msg.className);
             }
             return impl;
         }
 
         @Override
-        public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
-            fireException(new TransportException(e.getCause()));
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
+                throws Exception {
+            fireException(new TransportException(cause));
         }
     }
 
