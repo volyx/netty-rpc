@@ -19,12 +19,10 @@ import static ru.alepar.rpc.common.Util.toSerializable;
 public class NettyRemote implements Remote, Serializable {
 
     private final Channel channel;
-    private final ChannelId clientId;
     private final Set<Class<?>> classes;
 
     public NettyRemote(Channel channel, Set<Class<?>> classes) {
         this.channel = channel;
-        this.clientId = channel.id();
         this.classes = classes;
     }
 
@@ -40,7 +38,7 @@ public class NettyRemote implements Remote, Serializable {
 
     @Override
     public ChannelId getId() {
-        return clientId;
+        return channel.id();
     }
 
     @Override
@@ -59,7 +57,7 @@ public class NettyRemote implements Remote, Serializable {
 
     @Override
     public int hashCode() {
-        return clientId.hashCode();
+        return channel.id().hashCode();
     }
 
     @Override
@@ -69,19 +67,19 @@ public class NettyRemote implements Remote, Serializable {
 
         NettyRemote that = (NettyRemote) o;
 
-        return this.clientId.equals(that.clientId);
+        return this.channel.id().equals(that.channel.id());
     }
 
     @Override
     public String toString() {
-        return "NettyRemote{" + clientId + "}";
+        return "NettyRemote{" + channel.id() + "}";
     }
 
     private class ProxyHandler implements InvocationHandler {
 
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-            channel.write(new InvocationRequest(
+            channel.writeAndFlush(new InvocationRequest(
                     method.getDeclaringClass().getName(),
                     method.getName(),
                     toSerializable(args),

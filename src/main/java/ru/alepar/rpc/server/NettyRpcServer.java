@@ -55,7 +55,7 @@ public class NettyRpcServer implements RpcServer {
 
             bootstrap.channel(NioServerSocketChannel.class)
                     .localAddress(bindAddress.getPort())
-                    .handler(new LoggingHandler(LogLevel.INFO))
+//                    .handler(new LoggingHandler(LogLevel.INFO))
                     .childHandler(new ChannelInitializer<SocketChannel>() { // (4)
                         @Override
                         public void initChannel(SocketChannel ch) throws Exception {
@@ -171,7 +171,7 @@ public class NettyRpcServer implements RpcServer {
         }
     }
 
-    private class RpcHandler extends ChannelInboundHandlerAdapter implements RpcMessage.Visitor {
+    private class RpcHandler extends SimpleChannelInboundHandler implements RpcMessage.Visitor {
 
         private final ConcurrentMap<Class<?>, Object> cache = new ConcurrentHashMap<Class<?>, Object>();
 
@@ -192,8 +192,8 @@ public class NettyRpcServer implements RpcServer {
         @Override
         public void channelInactive(ChannelHandlerContext ctx) throws Exception {
             super.channelInactive(ctx);
-            fireClientDisconnect(remote);
-            clients.removeClient(remote.getId());
+//            fireClientDisconnect(remote);
+//            clients.removeClient(remote.getId());
         }
 
 
@@ -228,7 +228,7 @@ public class NettyRpcServer implements RpcServer {
                 invokeMethod(msg, impl, classResolver);
             } catch (Exception exc) {
                 log.error("caught exception while trying to invoke implementation", exc);
-                channel.write(new ExceptionNotify(exc));
+                channel.writeAndFlush(new ExceptionNotify(exc));
             }
         }
 
@@ -256,7 +256,7 @@ public class NettyRpcServer implements RpcServer {
 
 
         @Override
-        public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        public void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
             RpcMessage message = (RpcMessage) msg;
             log.debug("server got message {} from {}", message.toString(), ctx.channel().toString());
             message.visit(this);

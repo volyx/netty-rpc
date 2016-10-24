@@ -28,7 +28,7 @@ public class KeepAliveTimer {
         @Override
         public void run() {
             for (NettyRemote remote : remotes) {
-                remote.getChannel().write(new KeepAlive());
+                remote.getChannel().writeAndFlush(new KeepAlive());
             }
         }
     }

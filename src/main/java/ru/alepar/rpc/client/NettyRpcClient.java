@@ -51,6 +51,7 @@ public class NettyRpcClient implements RpcClient {
 
     private Channel channel;
     private volatile NettyRemote remote;
+    private ChannelId id;
 
     public NettyRpcClient(final InetSocketAddress remoteAddress, final Map<Class<?>, Object> implementations, final ExceptionListener[] listeners, final ClassResolver classResolver, final long keepalivePeriod) {
         this.implementations = implementations;
@@ -100,8 +101,6 @@ public class NettyRpcClient implements RpcClient {
             e.printStackTrace();
             throw new RuntimeException();
 
-        } finally {
-            workerGroup.shutdownGracefully();
         }
     }
 
@@ -110,6 +109,7 @@ public class NettyRpcClient implements RpcClient {
         keepAliveTimer.stop();
         channel.close().awaitUninterruptibly();
 //        bootstrap.releaseExternalResources();
+//        workerGroup.shutdownGracefully();
     }
 
     @Override
@@ -125,6 +125,10 @@ public class NettyRpcClient implements RpcClient {
                 log.error("exception listener " + listener + " threw exception", exc);
             }
         }
+    }
+
+    public ChannelId getId() {
+        return id;
     }
 
     private class RpcHandler extends SimpleChannelInboundHandler implements RpcMessage.Visitor {
@@ -151,6 +155,7 @@ public class NettyRpcClient implements RpcClient {
         @Override
         public void acceptHandshakeFromServer(HandshakeFromServer msg) {
             try {
+                id = msg.getClientId();
                 remote = new NettyRemote(channel, new HashSet<Class<?>>(unfoldStringToClasses(classResolver, msg.classNames)));
             } catch (ClassNotFoundException e) {
                 log.error("interfaces registered on server side are not in the classpath", e);

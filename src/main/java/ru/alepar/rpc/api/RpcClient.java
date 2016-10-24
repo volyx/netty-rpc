@@ -1,5 +1,7 @@
 package ru.alepar.rpc.api;
 
+import io.netty.channel.ChannelId;
+
 public interface RpcClient {
 
     /**
@@ -12,4 +14,5 @@ public interface RpcClient {
      */
     void shutdown();
 
+    ChannelId getId();
 }

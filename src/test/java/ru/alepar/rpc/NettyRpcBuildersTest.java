@@ -1,5 +1,6 @@
 package ru.alepar.rpc;
 
+import io.netty.channel.ChannelId;
 import org.jmock.Expectations;
 import org.jmock.Mockery;
 import org.jmock.integration.junit4.JUnit4Mockery;
@@ -28,26 +29,30 @@ public class NettyRpcBuildersTest {
 
         RpcServer server = serverBuilder
                 .addObject(ServerRemote.class, mock)
-                .addObject(ServerService.class, new ServerService() {
-                    @Override
-                    public Result coolMethod(String a) {
-                        System.out.println("Hello " + a);
-                        return new Result("Hello " + a);
-                    }
-
-                })
+//                .addObject(ServerService.class, new ServerService() {
+//                    @Override
+//                    public Result coolMethod(String a) {
+//                        System.out.println("Hello " + a);
+//                        return new Result("Hello " + a);
+//                    }
+//
+//                })
                 .build();
 
         RpcClient client = clientBuilder
+                .addObject(ClientService.class, new ClientServiceImpl())
                 .setKeepAlive(50L)
                 .build();
 
+        ClientService clientService = server.getClient(client.getId()).getProxy(ClientService.class);
+        clientService.boom();
+
         try {
             ServerRemote proxy = client.getRemote().getProxy(ServerRemote.class);
-            ServerService serverService = client.getRemote().getProxy(ServerService.class);
+//            ServerService serverService = client.getRemote().getProxy(ServerService.class);
 
-            Result result = serverService.coolMethod("123");
-            System.out.println("Result " + result.getHello());
+//            Result result = serverService.coolMethod("123");
+//            System.out.println("Result " + result.getHello());
 
 
             proxy.call();
@@ -67,6 +72,11 @@ public class NettyRpcBuildersTest {
         Result coolMethod(String a);
     }
 
+    public interface ClientService {
+
+        void boom();
+    }
+
     public class Result {
 
         private String hello;
@@ -78,6 +88,14 @@ public class NettyRpcBuildersTest {
 
         public String getHello() {
             return hello;
+        }
+    }
+
+    public class ClientServiceImpl implements ClientService {
+
+        @Override
+        public void boom() {
+            System.out.println("\t\t\t\n\n\n\nBOOOM");
         }
     }
 }

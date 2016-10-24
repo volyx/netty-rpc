@@ -18,6 +18,10 @@ public class HandshakeFromServer extends RpcMessage {
         visitor.acceptHandshakeFromServer(this);
     }
 
+    public ChannelId getClientId() {
+        return clientId;
+    }
+
     @Override
     public String toString() {
         return "HandshakeFromServer{" +
