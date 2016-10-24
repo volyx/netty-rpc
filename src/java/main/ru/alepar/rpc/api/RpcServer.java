@@ -1,5 +1,7 @@
 package ru.alepar.rpc.api;
 
+import io.netty.channel.ChannelId;
+
 import java.util.Collection;
 
 public interface RpcServer {
@@ -8,7 +10,7 @@ public interface RpcServer {
      * @param clientId id of a client connected to this server
      * @return remote associated with this client
      */
-    Remote getClient(Remote.Id clientId);
+    Remote getClient(ChannelId clientId);
 
     /**
      * @return remotes for all the clients currently connected to this server<br/>

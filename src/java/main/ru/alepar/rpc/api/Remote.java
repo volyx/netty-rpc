@@ -1,5 +1,7 @@
 package ru.alepar.rpc.api;
 
+import io.netty.channel.ChannelId;
+
 import java.io.Serializable;
 
 public interface Remote {
@@ -7,7 +9,7 @@ public interface Remote {
     /**
      * @return unique id for the connection, note that client and server have the same id for particular connection
      */
-    Id getId();
+    ChannelId getId();
 
     /**
      * @return remote address of the associated client
@@ -26,6 +28,4 @@ public interface Remote {
      */
     <T> T getProxy(Class<T> clazz);
 
-    public interface Id extends Serializable {}
-    
 }

@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.Set;
 
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelId;
 import ru.alepar.rpc.api.Remote;
 import ru.alepar.rpc.api.exception.ConfigurationException;
 import ru.alepar.rpc.common.message.InvocationRequest;
@@ -18,12 +19,12 @@ import static ru.alepar.rpc.common.Util.toSerializable;
 public class NettyRemote implements Remote, Serializable {
 
     private final Channel channel;
-    private final Id clientId;
+    private final ChannelId clientId;
     private final Set<Class<?>> classes;
 
-    public NettyRemote(Channel channel, Id clientId, Set<Class<?>> classes) {
+    public NettyRemote(Channel channel, Set<Class<?>> classes) {
         this.channel = channel;
-        this.clientId = clientId;
+        this.clientId = channel.id();
         this.classes = classes;
     }
 
@@ -38,7 +39,7 @@ public class NettyRemote implements Remote, Serializable {
     }
 
     @Override
-    public Id getId() {
+    public ChannelId getId() {
         return clientId;
     }
 

@@ -16,19 +16,26 @@ public class NettyRpcBuildersTest {
 
     private final Mockery mockery = new JUnit4Mockery();
 
-    @Test(timeout = TIMEOUT)
+    @Test
     public void buildersCreateClientAndServerWhichCanTalk() throws Exception {
         final ServerRemote mock = mockery.mock(ServerRemote.class);
         mockery.checking(new Expectations() {{
             one(mock).call();
         }});
-        
+
         final NettyRpcServerBuilder serverBuilder = new NettyRpcServerBuilder(Config.BIND_ADDRESS);
         final NettyRpcClientBuilder clientBuilder = new NettyRpcClientBuilder(Config.BIND_ADDRESS);
 
         RpcServer server = serverBuilder
                 .addObject(ServerRemote.class, mock)
-                .setKeepAlive(50L)
+                .addObject(ServerService.class, new ServerService() {
+                    @Override
+                    public Result coolMethod(String a) {
+                        System.out.println("Hello " + a);
+                        return new Result("Hello " + a);
+                    }
+
+                })
                 .build();
 
         RpcClient client = clientBuilder
@@ -37,6 +44,12 @@ public class NettyRpcBuildersTest {
 
         try {
             ServerRemote proxy = client.getRemote().getProxy(ServerRemote.class);
+            ServerService serverService = client.getRemote().getProxy(ServerService.class);
+
+            Result result = serverService.coolMethod("123");
+            System.out.println("Result " + result.getHello());
+
+
             proxy.call();
             giveTimeForMessagesToBeProcessed();
         } finally {
@@ -47,5 +60,24 @@ public class NettyRpcBuildersTest {
 
     public interface ServerRemote {
         void call();
+    }
+
+    public interface ServerService {
+
+        Result coolMethod(String a);
+    }
+
+    public class Result {
+
+        private String hello;
+
+        public Result(String hello) {
+
+            this.hello = hello;
+        }
+
+        public String getHello() {
+            return hello;
+        }
     }
 }

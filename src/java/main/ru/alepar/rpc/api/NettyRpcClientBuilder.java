@@ -7,12 +7,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
+import io.netty.channel.EventLoopGroup;
 import io.netty.handler.codec.serialization.ClassResolver;
 import ru.alepar.rpc.client.NettyRpcClient;
-import ru.alepar.rpc.common.BossThreadFactory;
 import ru.alepar.rpc.common.PrimitiveTypesClassResolver;
 import ru.alepar.rpc.common.Validator;
-import ru.alepar.rpc.common.WorkerThreadFactory;
 
 import static io.netty.handler.codec.serialization.ClassResolvers.softCachingConcurrentResolver;
 import static java.util.Collections.unmodifiableMap;
@@ -27,8 +26,6 @@ public class NettyRpcClientBuilder {
     private final List<ExceptionListener> listeners = new ArrayList<ExceptionListener>();
 
     private ClassResolver classResolver = softCachingConcurrentResolver(null);
-    private ExecutorService bossExecutor = newCachedThreadPool(new BossThreadFactory());
-    private ExecutorService workerExecutor = newCachedThreadPool(new WorkerThreadFactory());
     private long keepAlive = 30000l;
 
     /**
@@ -84,25 +81,6 @@ public class NettyRpcClientBuilder {
     public NettyRpcClientBuilder setClassResolver(ClassResolver classResolver) {
         this.classResolver = classResolver;
         return this;
-    }
-
-    /**
-     * set executor, which will take care of all socket.accept() routine
-     * by default, netty takes only one thread from this
-     * default executor is {@link java.util.concurrent.Executors#newCachedThreadPool() newCachedThreadPool}(new {@link ru.alepar.rpc.common.BossThreadFactory BossThreadFactory}())
-     * @param bossExecutor executor to be used as boss
-     */
-    public void setBossExecutor(ExecutorService bossExecutor) {
-        this.bossExecutor = bossExecutor;
-    }
-
-    /**
-     * set executor, which will take care of all remote calls
-     * default executor is {@link java.util.concurrent.Executors#newCachedThreadPool() newCachedThreadPool}(new {@link ru.alepar.rpc.common.WorkerThreadFactory WorkerThreadFactory}())
-     * @param workerExecutor executor to be used as boss
-     */
-    public void setWorkerExecutor(ExecutorService workerExecutor) {
-        this.workerExecutor = workerExecutor;
     }
 
     /**

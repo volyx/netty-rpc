@@ -8,6 +8,8 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.serialization.ClassResolver;
 import io.netty.handler.codec.serialization.ObjectDecoder;
 import io.netty.handler.codec.serialization.ObjectEncoder;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.alepar.rpc.api.ClientListener;
@@ -15,7 +17,6 @@ import ru.alepar.rpc.api.ExceptionListener;
 import ru.alepar.rpc.api.Remote;
 import ru.alepar.rpc.api.RpcServer;
 import ru.alepar.rpc.api.exception.TransportException;
-import ru.alepar.rpc.common.NettyId;
 import ru.alepar.rpc.common.NettyRemote;
 import ru.alepar.rpc.common.message.*;
 
@@ -37,23 +38,24 @@ public class NettyRpcServer implements RpcServer {
     private final Map<Class<?>, ServerProvider<?>> implementations;
     private final ExceptionListener[] exceptionListeners;
     private final ClientListener[] clientListeners;
-
-    private final ServerBootstrap bootstrap;
+    private Channel acceptChannel;
 
     public NettyRpcServer(final InetSocketAddress bindAddress, final Map<Class<?>, ServerProvider<?>> implementations, final ExceptionListener[] exceptionListeners, final ClientListener[] clientListeners, final ClassResolver classResolver) {
         this.exceptionListeners = exceptionListeners;
         this.clientListeners = clientListeners;
         this.implementations = implementations;
         this.classResolver = classResolver;
-            final EventLoopGroup bossGroup = new NioEventLoopGroup();
-            final EventLoopGroup workerGroup = new NioEventLoopGroup();
+        final EventLoopGroup bossGroup = new NioEventLoopGroup();
+        final EventLoopGroup workerGroup = new NioEventLoopGroup();
         try {
-            bootstrap = new ServerBootstrap();
+            ServerBootstrap bootstrap = new ServerBootstrap();
 
 
             bootstrap.group(bossGroup, workerGroup);
 
             bootstrap.channel(NioServerSocketChannel.class)
+                    .localAddress(bindAddress.getPort())
+                    .handler(new LoggingHandler(LogLevel.INFO))
                     .childHandler(new ChannelInitializer<SocketChannel>() { // (4)
                         @Override
                         public void initChannel(SocketChannel ch) throws Exception {
@@ -66,18 +68,47 @@ public class NettyRpcServer implements RpcServer {
                     .childOption(ChannelOption.SO_KEEPALIVE, true);
 
             // Bind and start to accept incoming connections.
-            ChannelFuture f = bootstrap.bind(bindAddress.getPort()).sync(); // (7)
+            // (7)
+            ChannelFuture future = bootstrap.bind().awaitUninterruptibly();
+
+            if (future.isDone()) {
+                if (future.isSuccess()) {
+                    acceptChannel = future.channel();
+
+                    StringBuilder channelInfo = new StringBuilder(50);
+                    int i = 0;
+                    channelInfo.append(String.format("ServerChannel-%02d", i + 1));
+                    channelInfo.append('/');
+                    channelInfo.append("0:0:0:0").append(':');
+                    channelInfo.append(bindAddress.getPort());
+
+                    log.info("Finish to start up a Netty Server. channel info: {}", channelInfo);
+
+                } else {
+                    Throwable cause = future.cause();
+                    log.error("Fail to bind server on port. local port: {}", bindAddress.getPort(), cause);
+                }
+            }
+
+
+            // Wait until the server socket is closed.
+            // In this example, this does not happen, but you can do that to gracefully
+            // shut down your server.
+//            f.channel().closeFuture().sync();
+
         } catch (Exception e) {
+            e.printStackTrace();
             throw new RuntimeException();
-        } finally {
-            workerGroup.shutdownGracefully();
-            bossGroup.shutdownGracefully();
         }
     }
 
     @Override
     public void shutdown() {
         try {
+
+            // close main channel
+            acceptChannel.close().await();
+
             // send close message to all clients
             List<ChannelFuture> futures = new LinkedList<ChannelFuture>();
             for (NettyRemote client : clients.getClients()) {
@@ -91,13 +122,17 @@ public class NettyRpcServer implements RpcServer {
                 future.await();
             }
 
+//            workerGroup.shutdownGracefully();
+//            bossGroup.shutdownGracefully();
+
+
         } catch (InterruptedException e) {
             throw new RuntimeException("failed to shutdown properly", e);
         }
     }
 
     @Override
-    public Remote getClient(Remote.Id clientId) {
+    public Remote getClient(ChannelId clientId) {
         return clients.getClient(clientId);
     }
 
@@ -136,7 +171,7 @@ public class NettyRpcServer implements RpcServer {
         }
     }
 
-    private class RpcHandler extends SimpleChannelInboundHandler implements RpcMessage.Visitor {
+    private class RpcHandler extends ChannelInboundHandlerAdapter implements RpcMessage.Visitor {
 
         private final ConcurrentMap<Class<?>, Object> cache = new ConcurrentHashMap<Class<?>, Object>();
 
@@ -144,22 +179,21 @@ public class NettyRpcServer implements RpcServer {
         private NettyRemote remote;
 
         @Override
-        public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+        public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
+
+        }
+
+        @Override
+        public void channelActive(ChannelHandlerContext ctx) throws Exception {
+            super.channelActive(ctx);
             channel = ctx.channel();
         }
 
         @Override
-        public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
+        public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+            super.channelInactive(ctx);
             fireClientDisconnect(remote);
             clients.removeClient(remote.getId());
-        }
-
-
-        @Override
-        protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
-            RpcMessage message = (RpcMessage) msg;
-            log.debug("server got message {} from {}", message.toString(), ctx.channel().toString());
-            message.visit(this);
         }
 
 
@@ -171,9 +205,8 @@ public class NettyRpcServer implements RpcServer {
         @Override
         public void acceptHandshakeFromClient(HandshakeFromClient msg) {
             try {
-                ChannelId channelId = channel.id();
-                remote = new NettyRemote(channel, new NettyId(0), new HashSet<Class<?>>(unfoldStringToClasses(classResolver, msg.classNames)));
-                channel.write(new HandshakeFromServer(remote.getId(), foldClassesToStrings(new ArrayList<Class<?>>(implementations.keySet()))));
+                remote = new NettyRemote(channel, new HashSet<Class<?>>(unfoldStringToClasses(classResolver, msg.classNames)));
+                channel.writeAndFlush(new HandshakeFromServer(remote.getId(), foldClassesToStrings(new ArrayList<Class<?>>(implementations.keySet()))));
                 clients.addClient(remote);
                 fireClientConnect(remote);
             } catch (ClassNotFoundException e) {
@@ -219,6 +252,14 @@ public class NettyRpcServer implements RpcServer {
                 throw new RuntimeException("interface is not registered on server: " + clazz.getCanonicalName());
             }
             return provider.provideFor(remote);
+        }
+
+
+        @Override
+        public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+            RpcMessage message = (RpcMessage) msg;
+            log.debug("server got message {} from {}", message.toString(), ctx.channel().toString());
+            message.visit(this);
         }
 
         @Override

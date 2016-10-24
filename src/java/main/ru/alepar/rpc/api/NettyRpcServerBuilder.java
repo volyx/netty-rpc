@@ -10,10 +10,8 @@ import java.util.concurrent.ExecutorService;
 import io.netty.handler.codec.serialization.ClassResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ru.alepar.rpc.common.BossThreadFactory;
 import ru.alepar.rpc.common.PrimitiveTypesClassResolver;
 import ru.alepar.rpc.common.Validator;
-import ru.alepar.rpc.common.WorkerThreadFactory;
 import ru.alepar.rpc.server.FactoryServerProvider;
 import ru.alepar.rpc.server.InjectingServerProvider;
 import ru.alepar.rpc.server.NettyRpcServer;
@@ -34,9 +32,6 @@ public class NettyRpcServerBuilder {
     private final List<ClientListener> clientListeners = new ArrayList<ClientListener>();
 
     private ClassResolver classResolver = softCachingConcurrentResolver(null);
-    private ExecutorService bossExecutor = newCachedThreadPool(new BossThreadFactory());
-    private ExecutorService workerExecutor = newCachedThreadPool(new WorkerThreadFactory());
-    private long keepAlive = 30000l;
 
     /**
      * @param bindAddress local address to bind to
@@ -127,47 +122,9 @@ public class NettyRpcServerBuilder {
         return this;
     }
 
-    /**
-     * sets interval at which KeepAlive packets will be sent to remote clients
-     *
-     * setting it to zero will effectively disable KeepAlive
-     * this is not recommended - you most probably will miss abrupt disconnects
-     * @param interval interval in milliseconds, if zero - keepAlive will be disabled
-     * @return this builder
-     */
-    public NettyRpcServerBuilder setKeepAlive(long interval) {
-        this.keepAlive = interval;
-        return this;
-    }
-
-    /**
-     * sets classResolver that will be used by this RpcServer <br/>
-     * see {@link org.jboss.netty.handler.codec.serialization.ClassResolvers ClassResolvers} for available implementations
-     * @param classResolver to be used, default is {@link org.jboss.netty.handler.codec.serialization.ClassResolvers#softCachingConcurrentResolver(java.lang.ClassLoader) softCachingConcurrentResolver}
-     * @return this builder
-     */
     public NettyRpcServerBuilder setClassResolver(ClassResolver classResolver) {
         this.classResolver = classResolver;
         return this;
-    }
-
-    /**
-     * set executor, which will take care of all socket.accept() routine
-     * by default, netty takes only one thread from this
-     * default executor is {@link java.util.concurrent.Executors#newCachedThreadPool() newCachedThreadPool}(new {@link ru.alepar.rpc.common.BossThreadFactory BossThreadFactory}())
-     * @param bossExecutor executor to be used as boss
-     */
-    public void setBossExecutor(ExecutorService bossExecutor) {
-        this.bossExecutor = bossExecutor;
-    }
-
-    /**
-     * set executor, which will take care of all remote calls
-     * default executor is {@link java.util.concurrent.Executors#newCachedThreadPool() newCachedThreadPool}(new {@link ru.alepar.rpc.common.WorkerThreadFactory WorkerThreadFactory}())
-     * @param workerExecutor executor to be used as boss
-     */
-    public void setWorkerExecutor(ExecutorService workerExecutor) {
-        this.workerExecutor = workerExecutor;
     }
 
     /**
