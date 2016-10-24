@@ -11,31 +11,34 @@ import com.volyx.rpc.api.RpcServer;
 
 public class NettyRpcBuildersTest {
 
-    private final Mockery mockery = new JUnit4Mockery();
-
     @Test
     public void buildersCreateClientAndServerWhichCanTalk() throws Exception {
         final NettyRpcServerBuilder serverBuilder = new NettyRpcServerBuilder(Config.BIND_ADDRESS);
         final NettyRpcClientBuilder clientBuilder = new NettyRpcClientBuilder(Config.BIND_ADDRESS);
 
-        RpcServer server = serverBuilder
+        final RpcServer server = serverBuilder
                 .addObject(ServerRemote.class, new ServerRemoteImpl())
                 .build();
 
-        RpcClient client = clientBuilder
+        final RpcClient client1 = clientBuilder
                 .addObject(ClientService.class, new ClientServiceImpl())
-                .setKeepAlive(50L)
                 .build();
 
-        ClientService clientService = server.getClient(client.getId()).getProxy(ClientService.class);
-        clientService.boom();
+        final RpcClient client2 = clientBuilder
+                .addObject(ClientService.class, new ClientServiceImpl())
+                .build();
+
+        server.getClient(client1.getId()).getProxy(ClientService.class).boom();
+
+        server.getClient(client2.getId()).getProxy(ClientService.class).boom();
 
         try {
-            ServerRemote proxy = client.getRemote().getProxy(ServerRemote.class);
+            ServerRemote proxy = client1.getRemote().getProxy(ServerRemote.class);
             proxy.call();
             Config.giveTimeForMessagesToBeProcessed();
         } finally {
-            client.shutdown();
+            client1.shutdown();
+            client2.shutdown();
             server.shutdown();
         }
     }

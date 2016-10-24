@@ -48,6 +48,7 @@ public class NettyRpcClient implements RpcClient {
     private Channel channel;
     private volatile NettyRemote remote;
     private ChannelId id;
+    private final NioEventLoopGroup workerGroup;
 
     public NettyRpcClient(final InetSocketAddress remoteAddress, final Map<Class<?>, Object> implementations, final ExceptionListener[] listeners, final ClassResolver classResolver, final long keepalivePeriod) {
         this.implementations = implementations;
@@ -55,20 +56,13 @@ public class NettyRpcClient implements RpcClient {
         this.classResolver = classResolver;
 
         Bootstrap bootstrap = new Bootstrap();
-        NioEventLoopGroup workerGroup = new NioEventLoopGroup();
+        workerGroup = new NioEventLoopGroup();
         try {
             bootstrap.group(workerGroup);
             bootstrap.channel(NioSocketChannel.class); // (3)
             bootstrap.option(ChannelOption.SO_KEEPALIVE, true); // (4)
             bootstrap.remoteAddress(remoteAddress);
-            bootstrap.handler(new ChannelInitializer<SocketChannel>() {
-                @Override
-                public void initChannel(SocketChannel ch) throws Exception {
-                    ch.pipeline().addLast(new ObjectEncoder());
-                    ch.pipeline().addLast(new ObjectDecoder(classResolver));
-                    ch.pipeline().addLast(new RpcHandler());
-                }
-            });
+            bootstrap.handler(new RpcClientInitializer(implementations, listeners, classResolver));
 
             // connect the client to remote server the wait until the awaitUninterruptibly() method is completed
             final ChannelFuture future = bootstrap.connect().awaitUninterruptibly();
@@ -105,7 +99,7 @@ public class NettyRpcClient implements RpcClient {
         keepAliveTimer.stop();
         channel.close().awaitUninterruptibly();
 //        bootstrap.releaseExternalResources();
-//        workerGroup.shutdownGracefully();
+        workerGroup.shutdownGracefully();
     }
 
     @Override
@@ -113,85 +107,8 @@ public class NettyRpcClient implements RpcClient {
         return remote;
     }
 
-    private void fireException(Exception exc) {
-        for (ExceptionListener listener : listeners) {
-            try {
-                listener.onExceptionCaught(remote, exc);
-            } catch (Exception e) {
-                log.error("exception listener " + listener + " threw exception", exc);
-            }
-        }
-    }
-
     public ChannelId getId() {
         return id;
-    }
-
-    private class RpcHandler extends SimpleChannelInboundHandler implements RpcMessage.Visitor {
-
-
-        @Override
-        protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
-            RpcMessage message = (RpcMessage) msg;
-            log.debug("client got message {}", message.toString());
-
-            message.visit(this);
-        }
-
-        @Override
-        public void acceptExceptionNotify(ExceptionNotify msg) {
-            fireException(msg.exc);
-        }
-
-        @Override
-        public void acceptHandshakeFromClient(HandshakeFromClient msg) {
-            // ignore // shudn't happen
-        }
-
-        @Override
-        public void acceptHandshakeFromServer(HandshakeFromServer msg) {
-            try {
-                id = msg.getClientId();
-                remote = new NettyRemote(channel, new HashSet<Class<?>>(unfoldStringToClasses(classResolver, msg.classNames)));
-            } catch (ClassNotFoundException e) {
-                log.error("interfaces registered on server side are not in the classpath", e);
-                throw new RuntimeException("interfaces registered on server side are not in the classpath", e);
-            } finally {
-                latch.countDown();
-            }
-        }
-
-        @Override
-        public void acceptInvocationRequest(InvocationRequest msg) {
-            try {
-                Class<?> clazz = classResolver.resolve(msg.className);
-                Object impl = getImplementation(msg, clazz);
-
-                invokeMethod(msg, impl, classResolver);
-            } catch (Exception exc) {
-                log.error("caught exception while trying to invoke implementation", exc);
-                channel.write(new ExceptionNotify(exc));
-            }
-        }
-
-        @Override
-        public void acceptKeepAlive(KeepAlive msg) {
-            // ignore
-        }
-
-        private Object getImplementation(InvocationRequest msg, Class<?> clazz) {
-            Object impl = implementations.get(clazz);
-            if (impl == null) {
-                throw new RuntimeException("interface is not registered on client: " + msg.className);
-            }
-            return impl;
-        }
-
-        @Override
-        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
-                throws Exception {
-            fireException(new TransportException(cause));
-        }
     }
 
 }
