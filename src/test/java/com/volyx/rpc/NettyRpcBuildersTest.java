@@ -72,14 +72,14 @@ public class NettyRpcBuildersTest {
 
         @Override
         public void boom() {
-            System.out.println("\t\t\t\n\n\n\nBOOOM");
+            System.out.println("\t\t\t\n\n\n\nBOOOM ON SERVER");
         }
     }
 
-    private class ServerRemoteImpl implements ServerRemote {
+    public class ServerRemoteImpl implements ServerRemote {
         @Override
         public void call() {
-            System.out.println("\t\t\t\n\n\nBDIISH");
+            System.out.println("\t\t\t\n\n\nBDIISH FROM CLIENT");
         }
     }
 }
